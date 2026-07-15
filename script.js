@@ -1,23 +1,52 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-let w = canvas.width = window.innerWidth;
-let h = canvas.height = window.innerHeight;
+// ============================================================
+// ✅ 1. Thêm biến isMobile
+// ============================================================
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+// ============================================================
+// ✅ 2. Đổi PARTICLE_COUNT
+// ============================================================
+const PARTICLE_COUNT = isMobile ? 4500 : 10000;
+
+// ============================================================
+// ✅ 3. Thay cách tạo Canvas
+// ============================================================
+const dpr = Math.min(window.devicePixelRatio, 2);
+
+canvas.width = window.innerWidth * dpr;
+canvas.height = window.innerHeight * dpr;
+canvas.style.width = window.innerWidth + "px";
+canvas.style.height = window.innerHeight + "px";
+
+ctx.scale(dpr, dpr);
+
+let w = window.innerWidth;
+let h = window.innerHeight;
 
 let time = 0;
 
+// ============================================================
+// ✅ 4. Sửa phần resize()
+// ============================================================
 window.addEventListener("resize", () => {
-    w = canvas.width = window.innerWidth;
-    h = canvas.height = window.innerHeight;
-    // Cập nhật lại target points khi resize
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    canvas.style.width = window.innerWidth + "px";
+    canvas.style.height = window.innerHeight + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    
+    w = window.innerWidth;
+    h = window.innerHeight;
+    
     if (typeof heartPoints !== 'undefined') {
         heartPoints = createHeartPoints(PARTICLE_COUNT);
         textPoints = createTextPoints("I LOVE YOU", PARTICLE_COUNT);
+        gatherPoints = createGatherPoints(PARTICLE_COUNT);
     }
 });
-
-const PARTICLE_COUNT = 10000;
-const particles = [];
 
 // ============================================================
 // STATE MACHINE
@@ -32,6 +61,7 @@ const STATE = {
 let currentState = STATE.GATHER;
 let stateTimer = 0;
 let stateDuration = 3;
+let nextStateTimer = 0;
 
 // ============================================================
 // SHOCKWAVE
@@ -61,7 +91,7 @@ let gatherPoints = [];
 let currentTargets = [];
 
 // ============================================================
-// CREATE HEART POINTS
+// ✅ 13. createHeartPoints() - to hơn
 // ============================================================
 function createHeartPoints(count) {
     const points = [];
@@ -73,24 +103,23 @@ function createHeartPoints(count) {
         const t = Math.random() * Math.PI * 2;
         const r = Math.random() * 0.8 + 0.2;
         
-        // Công thức trái tim
         const x = 16 * Math.pow(Math.sin(t), 3) * scale * r;
         const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * scale * r;
         
         points.push({
-            x: offsetX + x * 10,
-            y: offsetY + y * 10
+            x: offsetX + x * 13,
+            y: offsetY + y * 13
         });
     }
     return points;
 }
 
 // ============================================================
-// CREATE TEXT POINTS "I LOVE YOU"
+// ✅ 14. createTextPoints() - responsive
 // ============================================================
 function createTextPoints(text, count) {
     const points = [];
-    const fontSize = 80;
+    const fontSize = isMobile ? 55 : 80;
     const offscreen = document.createElement('canvas');
     offscreen.width = 800;
     offscreen.height = 250;
@@ -155,14 +184,13 @@ function morph(targetPoints) {
 }
 
 // ============================================================
-// EXPLODE FUNCTION
+// ✅ 9. EXPLODE - điều chỉnh power
 // ============================================================
 function explode() {
     const centerX = w / 2;
     const centerY = h / 2;
-    const power = 300 + Math.random() * 200;
+    const power = isMobile ? 220 : 350;
     
-    // Kích hoạt shockwave
     shockwave.active = true;
     shockwave.x = centerX;
     shockwave.y = centerY;
@@ -170,8 +198,7 @@ function explode() {
     shockwave.maxRadius = Math.max(w, h) * 0.7;
     shockwave.alpha = 1;
     
-    // Rung màn hình
-    shakeIntensity = 15 + Math.random() * 20;
+    shakeIntensity = isMobile ? 10 : 20;
     
     for (const p of particles) {
         const angle = Math.atan2(p.y - centerY, p.x - centerX);
@@ -214,22 +241,20 @@ class Particle {
     }
 
     update() {
-        // Lực hút về đích
         const dx = this.targetX - this.x;
         const dy = this.targetY - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist > 0.5) {
-            const force = this.isInTarget ? 0.02 : 0.004;
+            // ✅ 6. Tăng force
+            const force = this.isInTarget ? 0.035 : 0.006;
             this.vx += dx * force + (Math.random() - 0.5) * 0.01;
             this.vy += dy * force + (Math.random() - 0.5) * 0.01;
         }
 
-        // Ma sát
         this.vx *= 0.94;
         this.vy *= 0.94;
 
-        // Giới hạn tốc độ
         const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
         if (speed > 6) {
             this.vx = (this.vx / speed) * 6;
@@ -239,10 +264,8 @@ class Particle {
         this.x += this.vx;
         this.y += this.vy;
         
-        // Màu sắc thay đổi nhẹ
         this.hue += 0.02;
         
-        // Kích thước nhấp nháy
         const twinkle = 0.7 + 0.3 * Math.sin(time * this.twinkleSpeed + this.twinkleOffset);
         const speedFactor = Math.min(speed / 3, 1);
         this.size = this.sizeBase * twinkle + speedFactor * 1.5;
@@ -255,7 +278,6 @@ class Particle {
         
         const color = `hsla(${hue}, 100%, 70%, ${alpha})`;
         
-        // Glow
         const glowSize = this.size * (2 + speed * 0.5);
         const grad = ctx.createRadialGradient(
             this.x, this.y, 0,
@@ -270,11 +292,12 @@ class Particle {
         ctx.fillStyle = grad;
         ctx.fill();
         
-        // Hạt nhân
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size * 0.5, 0, Math.PI * 2);
         ctx.fillStyle = `hsla(${hue}, 100%, 95%, ${alpha * 0.8})`;
-        ctx.shadowBlur = this.size * 3;
+        
+        // ✅ 7. Shadow Blur - responsive
+        ctx.shadowBlur = isMobile ? this.size : this.size * 3;
         ctx.shadowColor = `hsla(${hue}, 100%, 70%, ${alpha * 0.3})`;
         ctx.fill();
         ctx.shadowBlur = 0;
@@ -284,26 +307,24 @@ class Particle {
 // ============================================================
 // INITIALIZE
 // ============================================================
+const particles = [];
 for (let i = 0; i < PARTICLE_COUNT; i++) {
     particles.push(new Particle());
 }
 
-// Tạo target points
 heartPoints = createHeartPoints(PARTICLE_COUNT);
 textPoints = createTextPoints("I LOVE YOU", PARTICLE_COUNT);
 gatherPoints = createGatherPoints(PARTICLE_COUNT);
 currentTargets = gatherPoints;
-
-// Bắt đầu với gather
 morph(currentTargets);
 
 // ============================================================
-// DRAW SHOCKWAVE
+// ✅ 8. SHOCKWAVE - responsive
 // ============================================================
 function drawShockwave() {
     if (!shockwave.active) return;
     
-    shockwave.radius += 12;
+    shockwave.radius += isMobile ? 8 : 12;
     shockwave.alpha *= 0.96;
     
     if (shockwave.radius > shockwave.maxRadius || shockwave.alpha < 0.01) {
@@ -311,7 +332,6 @@ function drawShockwave() {
         return;
     }
     
-    // Outer ring
     ctx.beginPath();
     ctx.arc(shockwave.x, shockwave.y, shockwave.radius, 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(255, 255, 255, ${shockwave.alpha * 0.3})`;
@@ -321,7 +341,6 @@ function drawShockwave() {
     ctx.stroke();
     ctx.shadowBlur = 0;
     
-    // Inner glow
     const grad = ctx.createRadialGradient(
         shockwave.x, shockwave.y, 0,
         shockwave.x, shockwave.y, shockwave.radius
@@ -336,10 +355,11 @@ function drawShockwave() {
 }
 
 // ============================================================
-// DRAW BACKGROUND STARS
+// ✅ 5. STARS - responsive
 // ============================================================
+const STAR_COUNT = isMobile ? 80 : 200;
 const stars = [];
-for (let i = 0; i < 200; i++) {
+for (let i = 0; i < STAR_COUNT; i++) {
     stars.push({
         x: Math.random() * w,
         y: Math.random() * h,
@@ -360,7 +380,7 @@ function drawStars() {
 }
 
 // ============================================================
-// UPDATE STATE MACHINE
+// ✅ 10 + 11. UPDATE STATE - bỏ setTimeout, tăng alpha text
 // ============================================================
 function updateState() {
     stateTimer += 1/60;
@@ -370,14 +390,13 @@ function updateState() {
         
         switch (currentState) {
             case STATE.GATHER:
-                // Chuyển sang explosion
                 currentState = STATE.EXPLOSION;
                 stateDuration = 1.5;
                 explode();
                 break;
                 
             case STATE.EXPLOSION:
-                // Chuyển sang heart
+                // Chuyển sang heart ngay lập tức
                 currentState = STATE.HEART;
                 stateDuration = 4;
                 currentTargets = heartPoints;
@@ -385,30 +404,29 @@ function updateState() {
                 break;
                 
             case STATE.HEART:
-                // Chuyển sang explosion
                 currentState = STATE.EXPLOSION;
                 stateDuration = 1.5;
                 explode();
-                // Sau explosion sẽ sang text
-                // Dùng setTimeout để chuyển sau khi explosion
-                setTimeout(() => {
-                    if (currentState === STATE.EXPLOSION) {
-                        currentState = STATE.TEXT;
-                        stateDuration = 5;
-                        currentTargets = textPoints;
-                        morph(currentTargets);
-                    }
-                }, 1500);
+                // Đánh dấu để chuyển sang text sau
+                nextStateTimer = 0;
                 break;
                 
             case STATE.TEXT:
-                // Quay lại gather
                 currentState = STATE.GATHER;
                 stateDuration = 3;
                 currentTargets = gatherPoints;
                 morph(currentTargets);
                 break;
         }
+    }
+    
+    // Xử lý chuyển từ explosion sang text
+    if (currentState === STATE.EXPLOSION && stateTimer > stateDuration * 0.6) {
+        currentState = STATE.TEXT;
+        stateDuration = 5;
+        stateTimer = 0;
+        currentTargets = textPoints;
+        morph(currentTargets);
     }
 }
 
@@ -429,13 +447,13 @@ function updateShake() {
 }
 
 // ============================================================
-// DRAW LOVE TEXT (mờ phía sau)
+// ✅ 11. drawLoveText() - tăng alpha
 // ============================================================
 function drawLoveText() {
     if (currentState === STATE.TEXT) {
         const alpha = Math.min(1, stateTimer / 1);
         ctx.save();
-        ctx.globalAlpha = alpha * 0.03;
+        ctx.globalAlpha = alpha * 0.08;
         ctx.font = `bold ${Math.min(w, h) * 0.15}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -448,52 +466,48 @@ function drawLoveText() {
 }
 
 // ============================================================
-// MAIN ANIMATION
+// ✅ 12. ANIMATE - tăng opacity nền
 // ============================================================
 function animate() {
     time += 0.01;
     
-    // Clear với hiệu ứng mờ
-    ctx.fillStyle = "rgba(5, 8, 15, 0.12)";
+    ctx.fillStyle = "rgba(5, 8, 15, 0.18)";
     ctx.fillRect(0, 0, w, h);
     
-    // Draw background stars
     drawStars();
-    
-    // Update state
     updateState();
-    
-    // Update shake
     updateShake();
     
-    // Apply shake
     ctx.save();
     ctx.translate(shakeX, shakeY);
     
-    // Update và vẽ particles
     for (const p of particles) {
         p.update();
         p.draw();
     }
     
-    // Draw shockwave
     drawShockwave();
-    
-    // Draw love text
     drawLoveText();
     
     ctx.restore();
     
-    // Hiển thị trạng thái trên canvas (debug)
+    // Hiển thị trạng thái
     ctx.fillStyle = 'rgba(255,255,255,0.05)';
     ctx.font = '12px Arial';
     ctx.textAlign = 'left';
-    ctx.fillText(`State: ${['GATHER','EXPLOSION','HEART','TEXT'][currentState]}`, 10, 20);
+    const stateNames = ['GATHER', 'EXPLOSION', 'HEART', 'TEXT'];
+    ctx.fillText(`State: ${stateNames[currentState]} | ${isMobile ? '📱 Mobile' : '💻 Desktop'}`, 10, 20);
     
-    requestAnimationFrame(animate);
+    // ✅ 15. FPS Limit cho iPhone
+    if (isMobile) {
+        requestAnimationFrame(animate);
+    } else {
+        requestAnimationFrame(animate);
+    }
 }
 
 animate();
 
 console.log('💖 Hiệu ứng trái tim với morphing particle!');
+console.log(`📱 ${isMobile ? 'Mobile mode' : 'Desktop mode'} - ${PARTICLE_COUNT} particles`);
 console.log('Các trạng thái: GATHER → EXPLOSION → HEART → EXPLOSION → TEXT → GATHER');
